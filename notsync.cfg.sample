@@ -6,8 +6,10 @@ debug = True
 host = imap.gmail.com
 user = dme@dme.org
 password = Sc4nvtr
+extension = dme
 
 [snood.com]
 host = imap.snood.com
 user = david.edmondson
 password = Sc4nvtr
+extension = snood

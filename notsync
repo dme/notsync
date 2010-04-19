@@ -3,9 +3,11 @@
 import ConfigParser
 import imaplib
 import re
+import subprocess
 from cnotmuch import notmuch
 
 mid_regexp = re.compile('message-id: +\<(.*)\>', re.IGNORECASE)
+ret_regexp = re.compile('([0-9]+) +.*')
 
 # The `find_message' routine will throw an exception if the database
 # is modified in another thread, so we have to retry in that case.
@@ -22,38 +24,39 @@ def mid_exists(nm, mid):
     return exists
 
 def poll_server(host, user, password, extension):
-    global debug, verbose
+    global nm, debug, verbose
 
-    nm = notmuch.Database()
     srv = imaplib.IMAP4_SSL(host)
     srv.login(user, password)
-    srv.select()
-    typ, data = srv.search(None, 'ALL')
-    for num in data[0].split():
-        typ, data = srv.fetch(num, '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
-        mid_match = mid_regexp.match(data[0][1])
-        if mid_match:
-            mid = mid_match.group(1)
-            if mid_exists(nm, mid):
-                if debug:
-                    print 'found: %s' % mid
+    typ, msgnums = srv.select()
+    typ, data = srv.fetch('1:%s' % msgnums[0], '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
+    for mid_or_str in data:
+        if type(mid_or_str) == tuple:
+            (ret, mid) = mid_or_str
+            mid_match = mid_regexp.match(mid)
+            if mid_match:
+                mid = mid_match.group(1)
+                if not mid_exists(nm, mid):
+                    if verbose:
+                        print 'New: %s' % mid
+                    ret_match = ret_regexp.match(ret)
+                    if ret_match:
+                        num = ret_match.group(1)
+                        typ, data = srv.fetch(num, '(RFC822)')
+                        procmail(data[0][1], extension)
             else:
-                if verbose:
-                    print 'New: %s' % mid
-                typ, data = srv.fetch(num, '(RFC822)')
-                procmail(data[0][1], extension)
-        else:
-            print 'Regexp did not match.'
+                print 'Regexp did not match.'
     srv.close()
     srv.logout()
-    nm.close()
 
 def procmail(message, extension):
-    args = ''
+    args = ['procmail']
     if extension != '':
-        args += '-a %s' % extension
+        args += ['-a', extension]
 
-    print 'run procmail as "procmail %s"' % args
+    p = subprocess.Popen(args, stdin = subprocess.PIPE).stdin
+    p.write(message)
+    p.close()
 
 config = ConfigParser.ConfigParser()
 config.read('notsync.cfg')
@@ -69,6 +72,8 @@ except ConfigParser.NoOptionError:
 
 if debug:
     verbose = True
+
+nm = notmuch.Database()
 
 for server in config.get('general', 'servers').split():
     if verbose:
