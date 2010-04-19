@@ -61,10 +61,9 @@ def delete_old(host, user, password, delay):
     srv.login(user, password)
     typ, msgnums = srv.select()
     typ, data = srv.search(None, '(BEFORE %s)' % thenstr)
-    for msg in data[0].split():
-        if verbose:
-            print 'Deleting %s' % msg
-        srv.store(msg, '+FLAGS', '\\Deleted')
+    if verbose:
+        print 'Deleting %s' % data[0]
+    srv.store(','.join(data[0].split()), '+FLAGS', '\\Deleted')
     srv.close()
     srv.logout()
 
