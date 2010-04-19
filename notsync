@@ -1,0 +1,83 @@
+#!/usr/bin/python
+
+import ConfigParser
+import imaplib
+import re
+from cnotmuch import notmuch
+
+mid_regexp = re.compile('message-id: +\<(.*)\>', re.IGNORECASE)
+
+# The `find_message' routine will throw an exception if the database
+# is modified in another thread, so we have to retry in that case.
+def mid_exists(nm, mid):
+    exists = False
+    attempted = False
+    while not attempted:
+        try:
+            exists = nm.find_message(mid)
+            attempted = True
+        except NotmuchError:
+            print 'Exception during find_message'
+            pass
+    return exists
+
+def poll_server(host, user, password, extension):
+    global debug, verbose
+
+    nm = notmuch.Database()
+    srv = imaplib.IMAP4_SSL(host)
+    srv.login(user, password)
+    srv.select()
+    typ, data = srv.search(None, 'ALL')
+    for num in data[0].split():
+        typ, data = srv.fetch(num, '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
+        mid_match = mid_regexp.match(data[0][1])
+        if mid_match:
+            mid = mid_match.group(1)
+            if mid_exists(nm, mid):
+                if debug:
+                    print 'found: %s' % mid
+            else:
+                if verbose:
+                    print 'New: %s' % mid
+                typ, data = srv.fetch(num, '(RFC822)')
+                procmail(data[0][1], extension)
+        else:
+            print 'Regexp did not match.'
+    srv.close()
+    srv.logout()
+    nm.close()
+
+def procmail(message, extension):
+    args = ''
+    if extension != '':
+        args += '-a %s' % extension
+
+    print 'run procmail as "procmail %s"' % args
+
+config = ConfigParser.ConfigParser()
+config.read('notsync.cfg')
+
+try:
+    verbose = config.getboolean('general', 'verbose')
+except ConfigParser.NoOptionError:
+    verbose = False
+try:
+    debug = config.getboolean('general', 'debug')
+except ConfigParser.NoOptionError:
+    debug = False
+
+if debug:
+    verbose = True
+
+for server in config.get('general', 'servers').split():
+    if verbose:
+        print 'Polling %s...' % server
+    try:
+        ext = config.get(server, 'extension')
+    except:
+        ext = ''
+    poll_server(host = config.get(server, 'host'),
+                user = config.get(server, 'user'),
+                password = config.get(server, 'password'),
+                extension = ext)
