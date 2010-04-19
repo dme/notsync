@@ -4,6 +4,7 @@ import ConfigParser
 import imaplib
 import re
 import subprocess
+import time
 from cnotmuch import notmuch
 
 mid_regexp = re.compile('message-id: +\<(.*)\>', re.IGNORECASE)
@@ -49,6 +50,24 @@ def poll_server(host, user, password, extension):
     srv.close()
     srv.logout()
 
+def delete_old(host, user, password, delay):
+    global debug, verbose
+
+    # `delay' is in days.
+    then = time.time() - (delay * 24 * 60 * 60)
+    thenstr = time.strftime('%d-%b-%Y', time.gmtime(then))
+
+    srv = imaplib.IMAP4_SSL(host)
+    srv.login(user, password)
+    typ, msgnums = srv.select()
+    typ, data = srv.search(None, '(BEFORE %s)' % thenstr)
+    for msg in data[0].split():
+        if verbose:
+            print 'Deleting %s' % msg
+        srv.store(msg, '+FLAGS', '\\Deleted')
+    srv.close()
+    srv.logout()
+
 def procmail(message, extension):
     args = ['procmail']
     if extension != '':
@@ -69,6 +88,10 @@ try:
     debug = config.getboolean('general', 'debug')
 except ConfigParser.NoOptionError:
     debug = False
+try:
+    keep = config.getint('general', 'keep')
+except ConfigParser.NoOptionError:
+    keep = 30
 
 if debug:
     verbose = True
@@ -86,3 +109,10 @@ for server in config.get('general', 'servers').split():
                 user = config.get(server, 'user'),
                 password = config.get(server, 'password'),
                 extension = ext)
+
+    if verbose:
+        print 'Cleaning %s...' % server
+    delete_old(host = config.get(server, 'host'),
+               user = config.get(server, 'user'),
+               password = config.get(server, 'password'),
+               delay = keep)
