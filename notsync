@@ -30,7 +30,7 @@ def mid_exists(nm, mid):
     return exists
 
 def poll_server(host, user, password, directory):
-    global nm
+    nm = notmuch.Database()
 
     srv = imaplib.IMAP4_SSL(host)
     srv.login(user, password)
@@ -61,7 +61,6 @@ def poll_server(host, user, password, directory):
     srv.logout()
 
 def delete_old(host, user, password, delay):
-
     # `delay' is in days.
     then = time.time() - (delay * 24 * 60 * 60)
     thenstr = time.strftime('%d-%b-%Y', time.gmtime(then))
@@ -90,8 +89,6 @@ def store(message, directory):
     md.close()
 
 def main():
-    global nm
-
     config = ConfigParser.ConfigParser()
     config.read(os.path.expanduser('~/.notsync.cfg'))
     log_level = logging.WARN
@@ -114,8 +111,6 @@ def main():
 
     logging.basicConfig(level=log_level, datefmt="%Y%m%d %H:%M:%S",
                         format="%(asctime)s - %(levelname)s - %(message)s")
-
-    nm = notmuch.Database()
 
     for server in config.get('general', 'servers').split():
         logging.info('Polling %s...' % server)
