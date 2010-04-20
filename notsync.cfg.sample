@@ -10,10 +10,10 @@ host = imap.gmail.com
 user = dme@dme.org
 password = Sc4nvtr
 #extension gets passed to procmail via '-a'
-extension = dme
+subdir = dme/%Y-%m
 
 [snood.com]
 host = imap.snood.com
 user = david.edmondson
 password = Sc4nvtr
-extension = snood
+subdir = snood/%Y-%m

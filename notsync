@@ -76,8 +76,8 @@ def delete_old(host, user, password, delay):
     srv.logout()
 
 def store(message, directory):
-    # Add on the year and month to the directory.
-    directory = os.path.join(directory, time.strftime('%Y-%m'))
+    # Allow for strftime formatting in the directory name.
+    directory = time.strftime(directory)
 
     logging.debug('Maildir for store is %s' % directory)
 
