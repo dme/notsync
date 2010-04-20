@@ -5,6 +5,7 @@ import imaplib
 import re
 import subprocess
 import time
+import logging
 from cnotmuch import notmuch
 
 mid_regexp = re.compile('message-id: +\<(.*)\>', re.IGNORECASE)
@@ -22,21 +23,19 @@ def mid_exists(nm, mid):
             exists = nm.find_message(mid)
             attempted = True
         except NotmuchError:
-            if debug:
-                print 'Exception during find_message'
+            logging.debug('Exception during find_message')
             pass
     return exists
 
 def poll_server(host, user, password, extension):
-    global nm, debug, verbose
+    global nm
 
     srv = imaplib.IMAP4_SSL(host)
     srv.login(user, password)
     typ, msgnums = srv.select()
     bottom = '1'
     for top in msgnums:
-        if debug:
-            print 'Checking the range %s - %s.' % (bottom, top)
+        logging.debug('Checking the range %s - %s.' % (bottom, top))
         typ, data = srv.fetch('%s:%s' % (bottom, top), '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
         for mid_or_str in data:
             if type(mid_or_str) == tuple:
@@ -45,25 +44,21 @@ def poll_server(host, user, password, extension):
                 if mid_match:
                     mid = mid_match.group(1)
                     if not mid_exists(nm, mid):
-                        if verbose:
-                            print 'New: %s' % mid
+                        logging.info('New: %s' % mid)
                         ret_match = ret_regexp.match(ret)
                         if ret_match:
                             num = ret_match.group(1)
                             typ, data = srv.fetch(num, '(RFC822)')
                             procmail(data[0][1], extension)
                         else:
-                            if debug:
-                                print 'Return code regexp did not match (%s).' % ret
+                            logging.debug('Return code regexp did not match (%s).' % ret)
                 else:
-                    if debug:
-                        print 'Message ID regexp did not match (%s).' % mid
+                    logging.debug('Message ID regexp did not match (%s).' % mid)
         bottom = top
     srv.close()
     srv.logout()
 
 def delete_old(host, user, password, delay):
-    global debug, verbose
 
     # `delay' is in days.
     then = time.time() - (delay * 24 * 60 * 60)
@@ -74,8 +69,7 @@ def delete_old(host, user, password, delay):
     typ, msgnums = srv.select()
     typ, data = srv.search(None, '(BEFORE %s)' % thenstr)
     if data[0] != "":
-        if verbose:
-            print 'Deleting %s' % data[0]
+        logging.info('Deleting %s' % data[0])
         srv.store(','.join(data[0].split()), '+FLAGS', '\\Deleted')
     srv.close()
     srv.logout()
@@ -93,31 +87,31 @@ def procmail(message, extension):
 
 
 def main():
-    global debug, verbose, nm
+    global nm
     config = ConfigParser.ConfigParser()
     config.read('notsync.cfg')
+    log_level = logging.WARN
 
-    try:
-        verbose = config.getboolean('general', 'verbose')
-    except ConfigParser.NoOptionError:
-        verbose = False
-    try:
-        debug = config.getboolean('general', 'debug')
-    except ConfigParser.NoOptionError:
-        debug = False
+    if config.has_option('general', 'verbose') and \
+            config.getboolean('general', 'verbose'):
+       log_level = logging.INFO
+
+    if config.has_option('general', 'debug') and \
+            config.getboolean('general', 'debug'):
+       log_level = logging.DEBUG
+
     try:
         keep = config.getint('general', 'keep')
     except ConfigParser.NoOptionError:
         keep = 30
 
-    if debug:
-        verbose = True
+    logging.basicConfig(level=log_level, datefmt="%Y%m%d %H:%M:%S",
+            format="%(asctime)s - %(levelname)s - %(message)s")
 
     nm = notmuch.Database()
 
     for server in config.get('general', 'servers').split():
-        if verbose:
-            print 'Polling %s...' % server
+        logging.info('Polling %s...' % server)
         try:
             ext = config.get(server, 'extension')
         except:
@@ -127,8 +121,7 @@ def main():
                     password = config.get(server, 'password'),
                     extension = ext)
 
-        if verbose:
-            print 'Cleaning %s...' % server
+        logging.info('Cleaning %s...' % server)
         delete_old(host = config.get(server, 'host'),
                    user = config.get(server, 'user'),
                    password = config.get(server, 'password'),
