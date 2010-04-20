@@ -91,42 +91,48 @@ def procmail(message, extension):
     p.write(message.replace("\x0d\x0a", "\x0a"))
     p.close()
 
-config = ConfigParser.ConfigParser()
-config.read('notsync.cfg')
 
-try:
-    verbose = config.getboolean('general', 'verbose')
-except ConfigParser.NoOptionError:
-    verbose = False
-try:
-    debug = config.getboolean('general', 'debug')
-except ConfigParser.NoOptionError:
-    debug = False
-try:
-    keep = config.getint('general', 'keep')
-except ConfigParser.NoOptionError:
-    keep = 30
+def main():
+    global debug, verbose, nm
+    config = ConfigParser.ConfigParser()
+    config.read('notsync.cfg')
 
-if debug:
-    verbose = True
-
-nm = notmuch.Database()
-
-for server in config.get('general', 'servers').split():
-    if verbose:
-        print 'Polling %s...' % server
     try:
-        ext = config.get(server, 'extension')
-    except:
-        ext = ''
-    poll_server(host = config.get(server, 'host'),
-                user = config.get(server, 'user'),
-                password = config.get(server, 'password'),
-                extension = ext)
+        verbose = config.getboolean('general', 'verbose')
+    except ConfigParser.NoOptionError:
+        verbose = False
+    try:
+        debug = config.getboolean('general', 'debug')
+    except ConfigParser.NoOptionError:
+        debug = False
+    try:
+        keep = config.getint('general', 'keep')
+    except ConfigParser.NoOptionError:
+        keep = 30
 
-    if verbose:
-        print 'Cleaning %s...' % server
-    delete_old(host = config.get(server, 'host'),
-               user = config.get(server, 'user'),
-               password = config.get(server, 'password'),
-               delay = keep)
+    if debug:
+        verbose = True
+
+    nm = notmuch.Database()
+
+    for server in config.get('general', 'servers').split():
+        if verbose:
+            print 'Polling %s...' % server
+        try:
+            ext = config.get(server, 'extension')
+        except:
+            ext = ''
+        poll_server(host = config.get(server, 'host'),
+                    user = config.get(server, 'user'),
+                    password = config.get(server, 'password'),
+                    extension = ext)
+
+        if verbose:
+            print 'Cleaning %s...' % server
+        delete_old(host = config.get(server, 'host'),
+                   user = config.get(server, 'user'),
+                   password = config.get(server, 'password'),
+                   delay = keep)
+
+if __name__ == '__main__':
+    main()
