@@ -1,11 +1,15 @@
 [general]
 servers = dme.org snood.com
+#verbose = True
 debug = True
+# should old mail be deleted?
+delete_mail = True
 
 [dme.org]
 host = imap.gmail.com
 user = dme@dme.org
 password = Sc4nvtr
+#extension gets passed to procmail via '-a'
 extension = dme
 
 [snood.com]

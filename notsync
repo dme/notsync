@@ -121,6 +121,11 @@ def main():
                     password = config.get(server, 'password'),
                     extension = ext)
 
+        if not (config.has_option('general', 'delete_mail') and \
+                    config.getboolean('general', 'delete_mail')):
+            logging.debug('Not deleting old mail.')
+            return
+
         logging.info('Cleaning %s...' % server)
         delete_old(host = config.get(server, 'host'),
                    user = config.get(server, 'user'),
