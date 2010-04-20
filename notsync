@@ -13,6 +13,8 @@ ret_regexp = re.compile('([0-9]+) +.*')
 # The `find_message' routine will throw an exception if the database
 # is modified in another thread, so we have to retry in that case.
 def mid_exists(nm, mid):
+    global debug
+
     exists = False
     attempted = False
     while not attempted:
@@ -20,7 +22,8 @@ def mid_exists(nm, mid):
             exists = nm.find_message(mid)
             attempted = True
         except NotmuchError:
-            print 'Exception during find_message'
+            if debug:
+                print 'Exception during find_message'
             pass
     return exists
 
