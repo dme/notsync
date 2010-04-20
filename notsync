@@ -30,23 +30,32 @@ def poll_server(host, user, password, extension):
     srv = imaplib.IMAP4_SSL(host)
     srv.login(user, password)
     typ, msgnums = srv.select()
-    typ, data = srv.fetch('1:%s' % msgnums[0], '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
-    for mid_or_str in data:
-        if type(mid_or_str) == tuple:
-            (ret, mid) = mid_or_str
-            mid_match = mid_regexp.match(mid)
-            if mid_match:
-                mid = mid_match.group(1)
-                if not mid_exists(nm, mid):
-                    if verbose:
-                        print 'New: %s' % mid
-                    ret_match = ret_regexp.match(ret)
-                    if ret_match:
-                        num = ret_match.group(1)
-                        typ, data = srv.fetch(num, '(RFC822)')
-                        procmail(data[0][1], extension)
-            else:
-                print 'Regexp did not match.'
+    bottom = '1'
+    for top in msgnums:
+        if debug:
+            print 'Checking the range %s - %s.' % (bottom, top)
+        typ, data = srv.fetch('%s:%s' % (bottom, top), '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
+        for mid_or_str in data:
+            if type(mid_or_str) == tuple:
+                (ret, mid) = mid_or_str
+                mid_match = mid_regexp.match(mid)
+                if mid_match:
+                    mid = mid_match.group(1)
+                    if not mid_exists(nm, mid):
+                        if verbose:
+                            print 'New: %s' % mid
+                        ret_match = ret_regexp.match(ret)
+                        if ret_match:
+                            num = ret_match.group(1)
+                            typ, data = srv.fetch(num, '(RFC822)')
+                            procmail(data[0][1], extension)
+                        else:
+                            if debug:
+                                print 'Return code regexp did not match (%s).' % ret
+                else:
+                    if debug:
+                        print 'Message ID regexp did not match (%s).' % mid
+        bottom = top
     srv.close()
     srv.logout()
 
