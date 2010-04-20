@@ -10,7 +10,7 @@ import os.path
 import mailbox
 from cnotmuch import notmuch
 
-mid_regexp = re.compile('message-id: +\<(.*)\>', re.IGNORECASE)
+mid_regexp = re.compile('message-id:\s+\<(.*)\>', re.IGNORECASE)
 ret_regexp = re.compile('([0-9]+) +.*')
 
 # The `find_message' routine will throw an exception if the database
@@ -64,14 +64,23 @@ def delete_old(host, user, password, delay):
     # `delay' is in days.
     then = time.time() - (delay * 24 * 60 * 60)
     thenstr = time.strftime('%d-%b-%Y', time.gmtime(then))
+    logging.debug('Deleting messages BEFORE %s' % thenstr)
 
     srv = imaplib.IMAP4_SSL(host)
     srv.login(user, password)
     typ, msgnums = srv.select()
     typ, data = srv.search(None, '(BEFORE %s)' % thenstr)
     if data[0] != '':
-        logging.info('Deleting %s' % data[0])
-        srv.store(','.join(data[0].split()), '+FLAGS', '\\Deleted')
+        # Break the request up into 100 message chunks to avoid
+        # upsetting some IMAP servers with very long requests (Sun
+        # Java Messaging Server at least).
+        def chunks(l, n):
+            for i in xrange(0, len(l), n):
+                yield l[i:i+n]
+
+        for i in chunks(data[0].split(), 100):
+            logging.info('Deleting %s' % ' '.join(i))
+            srv.store(','.join(i), '+FLAGS', '\\Deleted')
     srv.close()
     srv.logout()
 
