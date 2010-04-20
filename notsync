@@ -68,7 +68,7 @@ def delete_old(host, user, password, delay):
     srv.login(user, password)
     typ, msgnums = srv.select()
     typ, data = srv.search(None, '(BEFORE %s)' % thenstr)
-    if data[0] != "":
+    if data[0] != '':
         logging.info('Deleting %s' % data[0])
         srv.store(','.join(data[0].split()), '+FLAGS', '\\Deleted')
     srv.close()
@@ -82,55 +82,54 @@ def procmail(message, extension):
     p = subprocess.Popen(args, stdin = subprocess.PIPE).stdin
     # Remove DOS line endings.
     # Is this completely safe?
-    p.write(message.replace("\x0d\x0a", "\x0a"))
+    p.write(message.replace('\x0d\x0a', '\x0a'))
     p.close()
-
 
 def main():
     global nm
+
     config = ConfigParser.ConfigParser()
     config.read('notsync.cfg')
     log_level = logging.WARN
 
     if config.has_option('general', 'verbose') and \
             config.getboolean('general', 'verbose'):
-       log_level = logging.INFO
+        log_level = logging.INFO
 
     if config.has_option('general', 'debug') and \
             config.getboolean('general', 'debug'):
-       log_level = logging.DEBUG
+        log_level = logging.DEBUG
 
-    try:
+    keep = 30
+    if config.has_option('general', 'keep'):
         keep = config.getint('general', 'keep')
-    except ConfigParser.NoOptionError:
-        keep = 30
 
     logging.basicConfig(level=log_level, datefmt="%Y%m%d %H:%M:%S",
-            format="%(asctime)s - %(levelname)s - %(message)s")
+                        format="%(asctime)s - %(levelname)s - %(message)s")
 
     nm = notmuch.Database()
 
     for server in config.get('general', 'servers').split():
         logging.info('Polling %s...' % server)
-        try:
+        ext = ''
+        if config.has_option(server, 'extension'):
             ext = config.get(server, 'extension')
-        except:
-            ext = ''
+
         poll_server(host = config.get(server, 'host'),
                     user = config.get(server, 'user'),
                     password = config.get(server, 'password'),
                     extension = ext)
 
-        if not (config.has_option('general', 'delete_mail') and \
-                    config.getboolean('general', 'delete_mail')):
-            logging.debug('Not deleting old mail.')
-            return
+        if config.has_option('general', 'delete_mail') and \
+                config.getboolean('general', 'delete_mail'):
 
-        logging.info('Cleaning %s...' % server)
-        delete_old(host = config.get(server, 'host'),
-                   user = config.get(server, 'user'),
-                   password = config.get(server, 'password'),
-                   delay = keep)
+            logging.info('Cleaning %s...' % server)
+            delete_old(host = config.get(server, 'host'),
+                       user = config.get(server, 'user'),
+                       password = config.get(server, 'password'),
+                       delay = keep)
+        else:
+            logging.debug('Not deleting old mail.')
 
 if __name__ == '__main__':
     main()
